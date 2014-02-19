@@ -8,6 +8,7 @@ class Promise():
         self.value = None
         self.successors = []
         self.failures = []
+        self.continuation_listeners = {}
 
         if callable(in_):
             try:
@@ -89,7 +90,7 @@ class Promise():
             def failure_(value):
                 reject(self.value)
 
-            self.successors.append(success_)
+            self.continuation_listeners[success] = success_
             self.failures.append(failure_)
 
 
@@ -100,7 +101,9 @@ class Promise():
         self.success = True
         self.value = value
         for listener in self.successors:
-            listener(value)
+            continuation_result = listener(value) 
+            self.continuation_listeners[listener](continuation_result)
+
 
     def _failure(self, error):
         self.success = False
