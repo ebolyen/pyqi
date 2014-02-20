@@ -41,7 +41,9 @@ class Promise():
             completion_table[promise] = None
             promises_left += 1
 
-        new_promise = new Promise()
+        new_promise = Promise()
+        new_promise.value = None
+        new_promise.success = None
 
         def check_completion(promise, is_success, value):
             if not is_success:
@@ -71,38 +73,53 @@ class Promise():
 
     def then(self, success, failure):
 
+        # resolve and reject are the new class's self._success and self._failure
+        def continuation(resolve, reject):
+            def success_(value):
+                print resolve
+                print value
+                if value is not None:
+                    resolve(value)
+                else:
+                    resolve(self.value)
+
+            self.continuation_listeners[success] = {}
+            self.continuation_listeners[success]['success'] = success_
+            self.continuation_listeners[success]['failure'] = reject
+            self.failures.append(reject)
+
+
+
+        p = Promise(continuation)
+
         if self.success is None:
             self.successors.append(success)
             self.failures.append(failure)
         else:
             if self.success:
-                success(self.value)
+                try:
+                    r = success(self.value)
+                    if r is not None:
+                        p._success(r)
+                    else:
+                        p._success(self.value)
+                except Exception as e:
+                    p._failure(e)
             else:
                 failure(self.value)
+                p._failure(self.value)
 
-        # resolve and reject are the new class's self._success and self._failure
-        def continuation(resolve, reject):
-            def success_(value):
-                if value is not None:
-                    resolve(value)
-                else:
-                    resolve(self.value)
-            def failure_(value):
-                reject(self.value)
-
-            self.continuation_listeners[success] = success_
-            self.failures.append(failure_)
-
-
-
-        return Promise(continuation)
+        return p
 
     def _success(self, value):
         self.success = True
         self.value = value
         for listener in self.successors:
-            continuation_result = listener(value) 
-            self.continuation_listeners[listener](continuation_result)
+            try:
+                continuation_result = listener(value) 
+                self.continuation_listeners[listener]['success'](continuation_result)
+            except Exception as e:
+                self.continuation_listeners[listener]['failure'](e)
 
 
     def _failure(self, error):
